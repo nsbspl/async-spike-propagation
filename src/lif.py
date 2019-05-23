@@ -51,7 +51,7 @@ def spike_binary(V: np.array):
     spike_bool = np.logical_and(V_trial > thres, thres > V_trial_shifted)
     F = 1.0 * spike_bool
     
-    return F[2:, :]
+    return F[1:, :]
 
 
 # TODO: VECTORIZE
@@ -73,3 +73,11 @@ def spike_binary_ghetto(V: np.array):
         F[:, i] = 1.0 * spike_bool
 
     return F[2:, :]
+
+def id_synaptic_waveform(dt, t_end, tau_rise, tau_fall):
+    t = np.arange(0.0, t_end, dt)
+    
+    tp = tau_rise*tau_fall / (tau_fall-tau_rise) * np.log(tau_fall/tau_rise)
+    factor = -np.exp(-tp/tau_rise) + np.exp(-tp/tau_fall)
+    
+    return 1.0/factor * (np.exp(-t/tau_fall) - np.exp(-t/tau_rise))
