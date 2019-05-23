@@ -9,7 +9,7 @@ def lif_compute(I_Total, R, tau_V, Th, dt):
     V_reset = -90.0
 
     k = 0
-    total_time = len(I_Total) - 1.0 / dt
+    total_time = len(I_Total) - 1.0/dt
     V_out = np.zeros(I_Total.shape[0])
 
     while k <= total_time:
@@ -26,8 +26,12 @@ def lif_compute(I_Total, R, tau_V, Th, dt):
         else:
             V_out[k] = V
             k += 1
-        V = V_out[k-1] # TODO: what's the purpose of this?
-
+        V = V_out[k-1]
+    
+    while k < V_out.shape[0]:
+        V_out[k] = V
+        k += 1
+    
     return V_out
 
 
