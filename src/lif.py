@@ -1,32 +1,54 @@
 import numpy as np
 
 # VECTORIZE
-def lif_compute(I_Total, R, tau_V, Th, dt):
+def lif_compute(I_total, R, tau_V, Th, dt):
     EL = -70.0  # mV
     V_th = Th  # -50
-    V = EL
+    V = np.ones((I_total.shape[1]))*EL
 
     V_reset = -90.0
 
     k = 0
-    total_time = len(I_Total) - 1.0/dt
-    V_out = np.zeros(I_Total.shape[0])
+    total_time = len(I_total) - 1.0/dt
+    V_out = np.zeros(I_total.shape)
+
+    spike_reset_count = np.zeros((I_total.shape[1],1))
 
     while k <= total_time:
         # LIF equation
-        dq_dt = 1.0 / tau_V * (-1.0 * (V - EL) + R * I_Total[k])
+        dq_dt = 1.0 / tau_V * (-1.0 * (V - EL) + R * I_total[k])
         V += dt*dq_dt
-
+        
         # Spike
-        if V >= V_th:
-            V_out[k] = 50.0  # TODO: ???
-            V_out[k+1:int(k+1.0/dt)+1] = V_reset # TODO: ???
-            k += int(1.0/dt) # TODO: ???
+        spike = 50.0*np.greater_equal(V, V_th) # Spike
+        spike_reset_add = ((int(1.0/dt)+1)*np.greater_equal(V, V_th))
+        spike_reset_count = np.add(spike_reset_count, spike_reset_add[:,None])
+        
         # No spike
-        else:
-            V_out[k] = V
-            k += 1
-        V = V_out[k-1]
+        subthresh = np.multiply(np.equal(spike_reset_count, 0.0),V[:,None])
+        reset = np.multiply(np.greater(spike_reset_count, 0.0),V_reset)
+        reset_or_subthres = reset + subthresh
+        no_spike = np.multiply(reset_or_subthres, np.less(V, V_th)[:,None]).flatten()
+        
+        V_out[k] = spike + no_spike
+        V = np.multiply(V_out[k,:], np.equal(spike_reset_count, 0.0).flatten()) + reset.flatten()
+        
+        spike_reset_count = spike_reset_count - 1.0*np.greater(spike_reset_count, 0.0)
+        
+        k += 1
+
+        # # Spike
+        # if np.greater_equal(V, V_th): # V >= V_th:
+        #     V_out[k] = 50.0  # TODO: ???
+        #     V_out[k+1:int(k+1.0/dt)+1] = V_reset # TODO: ???
+        #     0:10+1 -> 11 steps
+
+        #     k += int(1.0/dt) # TODO: ???
+        # # No spike
+        # else:
+        #     V_out[k] = V
+        #     k += 1
+        # V = V_out[k-1]
     
     while k < V_out.shape[0]:
         V_out[k] = V

@@ -34,8 +34,9 @@ class Layer:
 
         I_total = self.std_noise*ETA + i_inj
 
-        for k in range(0, self.NUM_NEURONS):
-            V[:,k] = lif_compute(I_total[:, k], self.R, self.tau_V, self.V_th, dt)
+        # for k in range(0, self.NUM_NEURONS):
+        #     V[:,k] = lif_compute(I_total[:, k], self.R, self.tau_V, self.V_th, dt)
+        V = lif_compute(I_total, self.R, self.tau_V, self.V_th, dt)
         F_binary = spike_binary(V)
 
         syn_waveform = id_synaptic_waveform(dt, self.syn_kernel_len, self.tau_rise, self.tau_fall)
