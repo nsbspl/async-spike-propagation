@@ -14,7 +14,10 @@ class Layer:
         self.EL = -70.0
         self.V_th = -40.0
         self.std_noise = 25.0
+        
         self.W = np.zeros((self.NUM_NEURONS, 1))
+        self.train_input = None
+        self.train_exp_output = None
 
         self.v_E = 0.0
         self.v_ave = -67.0
@@ -68,3 +71,5 @@ class Layer:
 
         A = np.multiply(Phi, X2)
         self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
+        self.train_input = i_inj
+        self.train_exp_output = exp_output
