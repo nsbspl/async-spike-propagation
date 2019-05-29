@@ -29,6 +29,7 @@ class Layer:
     def output(self, i_inj, dt, t_stop):
         tt = np.arange(0.0, t_stop, dt)
         V = np.zeros((tt.shape[0], self.NUM_NEURONS)) # Membrane potential per neuron
+
         # Additive noise to individual neurons
         ETA, _ = ouprocess_gaussian(5.0, dt, t_stop, self.NUM_NEURONS)
 
@@ -37,8 +38,6 @@ class Layer:
 
         I_total = self.std_noise*ETA + i_inj
 
-        # for k in range(0, self.NUM_NEURONS):
-        #     V[:,k] = lif_compute(I_total[:, k], self.R, self.tau_V, self.V_th, dt)
         V = lif_compute(I_total, self.R, self.tau_V, self.V_th, dt)
         F_binary = spike_binary(V)
 
@@ -50,7 +49,7 @@ class Layer:
         for neuron in range(0, self.NUM_NEURONS):
             fr_fast = np.convolve(F_binary[:,neuron], syn_waveform)
             F_synaptic[:, neuron] = fr_fast[:-syn_wave_len+1]
-        
+
         ind_neur = np.arange(0, self.NUM_NEURONS)
         Phi = F_synaptic[:t_steps, ind_neur]
         X2 = -1.0*self.v_ave*np.ones((t_steps,ind_neur.shape[0])) + self.v_E
