@@ -18,23 +18,23 @@ def lif_compute(I_total, R, tau_V, Th, dt):
         # LIF equation
         dq_dt = 1.0 / tau_V * (-1.0 * (V - EL) + R * I_total[k])
         V += dt*dq_dt
-        
+
         # Spike
         spike = 50.0*np.greater_equal(V, V_th) # Spike
         spike_reset_add = ((int(1.0/dt)+1)*np.greater_equal(V, V_th))
         spike_reset_count = np.add(spike_reset_count, spike_reset_add[:,None])
-        
+
         # No spike
         subthresh = np.multiply(np.equal(spike_reset_count, 0.0),V[:,None])
         reset = np.multiply(np.greater(spike_reset_count, 0.0),V_reset)
         reset_or_subthres = reset + subthresh
         no_spike = np.multiply(reset_or_subthres, np.less(V, V_th)[:,None]).flatten()
-        
+
         V_out[k] = spike + no_spike
         V = np.multiply(V_out[k,:], np.equal(spike_reset_count, 0.0).flatten()) + reset.flatten()
-        
+
         spike_reset_count = spike_reset_count - 1.0*np.greater(spike_reset_count, 0.0)
-        
+
         k += 1
 
         # # Spike
