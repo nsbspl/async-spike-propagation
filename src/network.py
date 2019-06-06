@@ -143,7 +143,9 @@ class Layer:
             json.dump(self.as_dict(), outfile)
 
         np.savez(open(os.path.join(path, LAYER_WEIGHTS_NPZ), 'wb'),
-            W=self.W)
+            W=self.W,
+            train_input=self.train_input,
+            train_exp_output=self.train_exp_output)
 
     @classmethod
     def load(cls, path: str, layer_name: str) -> 'Layer':
@@ -157,5 +159,7 @@ class Layer:
 
         data = np.load(open(os.path.join(path, LAYER_WEIGHTS_NPZ), 'rb'))
         layer.W = data['W']
+        layer.train_input = data['train_input']
+        layer.train_exp_output = data['train_exp_output']
 
         return layer
