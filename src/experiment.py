@@ -27,10 +27,11 @@ class Experiment:
 
         self.runtime = None
 
-    def one_trial(self, i):
+    def one_trial(self, i, int_noise_regen=True):
         out, _, f_binary, _ = self.layer.output(self.inputs[:, i, None],
                                                 self.dt,
-                                                self.t_stop)
+                                                self.t_stop,
+                                                int_noise_regen)
         times, neurons = np.where(f_binary != 0)
         self.spike_times.append([times])
         self.spike_neurons.append([neurons])
