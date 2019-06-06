@@ -1,3 +1,8 @@
+# ------------------------------PROJECT SPECIFIC-------------------------------
+# Results
+results/
+
+# ----------------------------GENERIC PYTHON THINGS----------------------------
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -128,7 +133,3 @@ dmypy.json
 
 # VS Code
 .vscode/
-
-# -------------------------PROJECT SPECIFIC----------------------------------
-# Results
-results/
