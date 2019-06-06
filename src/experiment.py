@@ -93,7 +93,7 @@ class Experiment:
         layer = Layer.load(folder_path, Experiment.__LAYER_FILE)
 
         in_npys = np.load(open(os.path.join(folder_path, Experiment.__NPZ),
-                               'rb'))
+                               'rb'), allow_pickle=True)
         inputs = in_npys['inputs']
         outputs = in_npys['outputs']
         spike_times = in_npys['spike_times']
