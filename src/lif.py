@@ -60,7 +60,6 @@ def lif_compute(I_total, R, tau_V, Th, dt):
 def spike_binary(V: np.array):
     thres = -20 # mv
     trial_num = V.shape[1]
-    L = V.shape[0]
     F = np.zeros((V.shape[0]+1, V.shape[1]))
     TINY_VAL = -90.0 * np.ones((trial_num))
 
@@ -80,7 +79,6 @@ def spike_binary(V: np.array):
 def spike_binary_ghetto(V: np.array):
     thres = -20 # mv
     trial_num = V.shape[1]
-    L = V.shape[0]
     F = np.zeros((V.shape[0]+1, V.shape[1]))
     TINY_VAL = -90.0
 
