@@ -2,7 +2,7 @@ import json
 import numpy as np
 import os
 from scipy.signal import find_peaks
-from scipy.ndimage import convolve1d
+
 
 from src.lif import lif_compute, spike_binary, id_synaptic_waveform
 from src.ou_process import ouprocess_gaussian
@@ -32,7 +32,7 @@ class Layer:
 
         self._ETA = None
 
-    def output(self, i_inj, dt, t_stop, int_noise_regen=True):
+    def spike(self, i_inj, dt, t_stop, int_noise_regen=True):
         tt = np.arange(0.0, t_stop, dt)
         V = np.zeros((tt.shape[0], self.NUM_NEURONS)) # Membrane potential per neuron
 
@@ -56,13 +56,18 @@ class Layer:
             self.tau_rise,
             self.tau_fall)
         syn_wave_len = syn_waveform.shape[0]
-        t_steps = F_binary.shape[0]
 
         F_synaptic = np.zeros(F_binary.shape)
         # TODO: VECTORIZE
         for neuron in range(0, self.NUM_NEURONS):
             fr_fast = np.convolve(F_binary[:,neuron], syn_waveform)
             F_synaptic[:, neuron] = fr_fast[:-syn_wave_len+1]
+        
+        return V, F_binary, F_synaptic
+
+    def output(self, i_inj, dt, t_stop, int_noise_regen=True):
+        V, F_binary, F_synaptic = self.spike(i_inj, dt, t_stop, int_noise_regen=True)
+        t_steps = F_binary.shape[0]
 
         ind_neur = np.arange(0, self.NUM_NEURONS)
         Phi = F_synaptic[:t_steps, ind_neur]
@@ -77,7 +82,7 @@ class Layer:
         _, _, _, F_synaptic = self.output(i_inj, dt, t_stop)
 
         t_steps = exp_output.shape[0]
-
+    
         ind_neur = np.arange(0, self.NUM_NEURONS)
         Phi = F_synaptic[:t_steps, ind_neur]
         X2 = -1.0*self.v_ave*np.ones((t_steps,ind_neur.shape[0])) + self.v_E
@@ -252,11 +257,13 @@ class PropogationNetwork(Layer):
     def load(cls, path: str, layer_name: str) -> 'PropgationNetwork':
         super().load(path, layer_name)
 
-class FullyConnectedLayerApprox(Layer):
+class _FullyConnectedLayer(Layer):
 
     def __init__(self, num_neurons, std_noise=25.0):
         super().__init__(num_neurons, std_noise=std_noise)
         self.W = np.zeros((self.NUM_NEURONS, self.NUM_NEURONS))
+
+class FullyConnectedLayerApprox(_FullyConnectedLayer):
 
     @classmethod
     def from_layer(cls, layer: Layer) -> 'FullyConnectedLayerApprox':
@@ -282,8 +289,18 @@ class FullyConnectedLayerApprox(Layer):
 
         return prop_ntwrk
 
-    def output(self, i_inj, dt, t_stop, int_noise_regen=True):
-        out, V, F_binary, F_synaptic = super().output(i_inj, dt, t_stop, int_noise_regen=True)
-        out = np.sum(out, axis=1)
+class FullyConnectedLayer(_FullyConnectedLayer):
 
-        return out, V, F_binary, F_synaptic
+    def train(self, i_inj, exp_output, dt, t_stop):
+        _, _, _, F_synaptic = self.output(i_inj, dt, t_stop)
+
+        t_steps = exp_output.shape[0]
+    
+        ind_neur = np.arange(0, self.NUM_NEURONS)
+        Phi = F_synaptic[:t_steps, ind_neur]
+        X2 = -1.0*self.v_ave*np.ones((t_steps,ind_neur.shape[0])) + self.v_E
+
+        A = np.multiply(Phi, X2)
+        self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
+        self.train_input = i_inj
+        self.train_exp_output = exp_output
