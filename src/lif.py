@@ -1,39 +1,46 @@
 import numpy as np
+import torch
 
 # VECTORIZE
+@torch.no_grad()
 def lif_compute(I_total, R, tau_V, Th, dt):
+    torch.autograd.set_grad_enabled(False)
+
     EL = -70.0  # mV
     V_th = Th  # -50
-    V = np.ones((I_total.shape[1]))*EL
+    V = torch.ones(I_total.shape[1])*EL
 
     V_reset = -90.0
 
     k = 0
     total_time = len(I_total) - 1.0/dt
-    V_out = np.zeros(I_total.shape)
+    V_out = torch.zeros(I_total.shape)
 
-    spike_reset_count = np.zeros((I_total.shape[1],1))
+    spike_reset_count = torch.zeros(I_total.shape[1],1)
 
     while k <= total_time:
         # LIF equation
-        dq_dt = 1.0 / tau_V * (-1.0 * (V - EL) + R * I_total[k])
-        V += dt*dq_dt
+        dq_dt = -1.0 * (V - EL)
+        add = float(R) * torch.as_tensor(I_total[k]).float()
+        dq_dt = dq_dt + add
+        dq_dt = 1.0 / tau_V * dq_dt
+        V = V + dt*dq_dt
 
         # Spike
-        spike = 50.0*np.greater_equal(V, V_th) # Spike
-        spike_reset_add = ((int(1.0/dt)+1)*np.greater_equal(V, V_th))
-        spike_reset_count = np.add(spike_reset_count, spike_reset_add[:,None])
+        spike = 50.0*torch.ge(V, V_th).float() # Spike
+        spike_reset_add = ((int(1.0/dt)+1.0)*torch.ge(V, V_th))
+        spike_reset_count = torch.add(spike_reset_count, spike_reset_add[:,None].float())
 
         # No spike
-        subthresh = np.multiply(np.equal(spike_reset_count, 0.0),V[:,None])
-        reset = np.multiply(np.greater(spike_reset_count, 0.0),V_reset)
+        subthresh = torch.mul(torch.eq(spike_reset_count, 0.0).float(), V[:,None].float())
+        reset = torch.mul(torch.gt(spike_reset_count, 0.0).float(), V_reset)
         reset_or_subthres = reset + subthresh
-        no_spike = np.multiply(reset_or_subthres, np.less(V, V_th)[:,None]).flatten()
+        no_spike = torch.mul(reset_or_subthres, torch.lt(V, V_th)[:,None].float()).flatten()
 
         V_out[k] = spike + no_spike
-        V = np.multiply(V_out[k,:], np.equal(spike_reset_count, 0.0).flatten()) + reset.flatten()
+        V = torch.mul(V_out[k,:], torch.eq(spike_reset_count, 0.0).float().flatten()) + reset.flatten()
 
-        spike_reset_count = spike_reset_count - 1.0*np.greater(spike_reset_count, 0.0)
+        spike_reset_count = spike_reset_count - 1.0*torch.gt(spike_reset_count, 0.0).float()
 
         k += 1
 
@@ -49,12 +56,12 @@ def lif_compute(I_total, R, tau_V, Th, dt):
         #     V_out[k] = V
         #     k += 1
         # V = V_out[k-1]
-    
+
     while k < V_out.shape[0]:
         V_out[k] = V
         k += 1
-    
-    return V_out
+
+    return V_out.numpy()
 
 
 def spike_binary(V: np.array):

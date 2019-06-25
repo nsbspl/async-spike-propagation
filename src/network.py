@@ -1,20 +1,21 @@
 import json
+import math
 import numpy as np
 import os
+import torch
+
 from scipy.signal import find_peaks
-
-
 from src.lif import lif_compute, spike_binary, id_synaptic_waveform
 from src.ou_process import ouprocess_gaussian
 from src.spike_sync import find_synced_spikes
 
 
 class Layer:
-    
+
     def __init__(self, num_neurons, std_noise=25.0):
         self.NUM_NEURONS = num_neurons
         self.tau_V = 10
-        self.R = 1 # MOhm
+        self.R = 1.0 # MOhm
         self.EL = -70.0
         self.V_th = -40.0
         self.std_noise = std_noise
@@ -32,6 +33,7 @@ class Layer:
 
         self._ETA = None
 
+    @torch.no_grad()
     def spike(self, i_inj, dt, t_stop, int_noise_regen=True):
         tt = np.arange(0.0, t_stop, dt)
         V = np.zeros((tt.shape[0], self.NUM_NEURONS)) # Membrane potential per neuron
@@ -57,14 +59,38 @@ class Layer:
             self.tau_fall)
         syn_wave_len = syn_waveform.shape[0]
 
+        # CONVOLUTION EXPLAINED
+        # kernel:
+        #     out_channels = NUM_NEURONS
+        #     in_channels / groups = 1
+        #     kernel_size = syn_wave_len
+        # input:
+        #     minibatch = 1
+        #     in_channels = NUM_NEURONS
+        #     input_size = len(tt)
+        # => groups = NUM_NEURONS (do SAME convolution SEPARATELY over each neuron spike train)
+
         F_synaptic = np.zeros(F_binary.shape)
-        # TODO: VECTORIZE
-        for neuron in range(0, self.NUM_NEURONS):
-            fr_fast = np.convolve(F_binary[:,neuron], syn_waveform)
-            F_synaptic[:, neuron] = fr_fast[:-syn_wave_len+1]
-        
+        syn_waveform_kernel = torch.as_tensor(syn_waveform).repeat(self.NUM_NEURONS, 1, 1)
+        pad = math.ceil(syn_wave_len/2.0)
+
+        fr_fast = torch.nn.functional.conv1d(
+                torch.as_tensor(F_binary.T)[None, :, :],
+                syn_waveform_kernel,
+                groups=self.NUM_NEURONS,
+                padding=pad).numpy()
+        print(fr_fast.shape)
+        F_synaptic = fr_fast[0, :, :tt.shape[0]].T
+        # F_synaptic = fr_fast[0, :, :-syn_wave_len+1].T
+        # for neuron in range(0, self.NUM_NEURONS):
+        #     fr_fast = torch.nn.functional.conv1d(
+        #         torch.as_tensor(F_binary[:,neuron]),
+        #         torch.as_tensor(syn_waveform)).numpy()
+        #     # fr_fast = np.convolve(F_binary[:,neuron], syn_waveform)
+        #     F_synaptic[:, neuron] = fr_fast[:-syn_wave_len+1]
         return V, F_binary, F_synaptic
 
+    @torch.no_grad()
     def output(self, i_inj, dt, t_stop, int_noise_regen=True):
         V, F_binary, F_synaptic = self.spike(i_inj, dt, t_stop, int_noise_regen=True)
         t_steps = F_binary.shape[0]
@@ -73,11 +99,15 @@ class Layer:
         Phi = F_synaptic[:t_steps, ind_neur]
         X2 = -1.0*self.v_ave*np.ones((t_steps,ind_neur.shape[0])) + self.v_E
 
+        print("F_synaptic: ", F_synaptic.shape)
+        print("Phi: ", Phi.shape)
+
         A = np.multiply(Phi, X2)
         out = np.dot(A, self.W)
 
         return out, V, F_binary, F_synaptic
 
+    @torch.no_grad()
     def train(self, i_inj, exp_output, dt, t_stop):
         _, _, _, F_synaptic = self.output(i_inj, dt, t_stop)
 
