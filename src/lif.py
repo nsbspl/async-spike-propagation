@@ -1,27 +1,28 @@
 import numpy as np
 import torch
 
-# VECTORIZE
-@torch.no_grad()
-def lif_compute(I_total, R, tau_V, Th, dt):
-    torch.autograd.set_grad_enabled(False)
 
-    EL = -70.0  # mV
+# VECTORIZE
+def lif_compute(I_total, R, tau_V, Th, dt, V_start=-70.0,
+                grad=False, device="cpu"):
+    torch.autograd.set_grad_enabled(grad)
+
+    EL = V_start  # mV
     V_th = Th  # -50
-    V = torch.ones(I_total.shape[1])*EL
+    V = torch.ones(I_total.shape[1], device=device)*V_start
 
     V_reset = -90.0
 
     k = 0
     total_time = len(I_total) - 1.0/dt
-    V_out = torch.zeros(I_total.shape)
+    V_out = torch.zeros(I_total.shape, device=device)
 
-    spike_reset_count = torch.zeros(I_total.shape[1],1)
+    spike_reset_count = torch.zeros(I_total.shape[1],1, device=device)
 
     while k <= total_time:
         # LIF equation
         dq_dt = -1.0 * (V - EL)
-        add = float(R) * torch.as_tensor(I_total[k]).float()
+        add = float(R) * I_total[k].float()
         dq_dt = dq_dt + add
         dq_dt = 1.0 / tau_V * dq_dt
         V = V + dt*dq_dt
@@ -61,26 +62,33 @@ def lif_compute(I_total, R, tau_V, Th, dt):
         V_out[k] = V
         k += 1
 
-    return V_out.numpy()
+    return V_out
 
+def spike_binary(V: torch.tensor, grad=False, device="cpu"):
+    torch.set_grad_enabled(grad)
 
-def spike_binary(V: np.array):
     thres = -20 # mv
     trial_num = V.shape[1]
-    F = np.zeros((V.shape[0]+1, V.shape[1]))
-    TINY_VAL = -90.0 * np.ones((trial_num))
+    TINY_VAL = -90.0 * torch.ones(1, trial_num, requires_grad=grad,
+                                  device=device)
 
     # CONVERT SPIKE INTO DIRAC DELTA
     # Shift right a copy of V by 1; where copy intersects with V can be
     # used as a point representing the spike
-    V_trial = np.concatenate((V, [TINY_VAL]))
-    V_trial_shifted = np.concatenate(([TINY_VAL], V))
+    # V_trial = torch.cat((V, TINY_VAL))
+    # V_trial_shifted = torch.cat((TINY_VAL, V))
+    #
+    # spike_bool = torch.mul(torch.gt(V_trial, thres), torch.le(V_trial_shifted, thres)).double()
 
-    spike_bool = np.logical_and(V_trial > thres, thres > V_trial_shifted)
-    F = 1.0 * spike_bool
-    
-    return F[1:, :]
+    spike_bool = (torch.nn.functional.relu(V) / 50.0).double()
 
+    # spike_bool = np.logical_and(V_trial > thres, thres > V_trial_shifted)
+    # F = 1.0 * spike_bool
+    # F.dtype = 
+    # print(type(F[1:, :]))
+
+    # return F[1:, :]
+    return spike_bool
 
 # TODO: VECTORIZE
 def spike_binary_ghetto(V: np.array):
@@ -108,3 +116,10 @@ def id_synaptic_waveform(dt, t_end, tau_rise, tau_fall):
     factor = -np.exp(-tp/tau_rise) + np.exp(-tp/tau_fall)
     
     return 1.0/factor * (np.exp(-t/tau_fall) - np.exp(-t/tau_rise))
+
+def gaussian_kernel(dt, sig):
+    t = np.arange(-(sig*3.0), sig*3.0, dt) # 3 standard deviations on either side
+    gauss_kernel = 1.0/(sig*np.sqrt(2.0*np.pi))*np.exp(-1.0*np.power(t, 2.0)/(2.0*np.power(sig, 2.0)))
+    gauss_kernel /= np.linalg.norm(gauss_kernel, ord=1)*dt # Want area under curve to be 1
+
+    return gauss_kernel

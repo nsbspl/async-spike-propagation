@@ -1,39 +1,36 @@
-import numpy as np
-import seaborn
+import time
 
-from src.lif import lif_compute, spike_binary
+import seaborn as sns
+
+from src.network import FullyConnectedLayer, Layer
 from src.ou_process import ouprocess_gaussian
 
+sns.set()
+
 if __name__ == '__main__':
-    TRIAL_NUM = 100
+    NUM_NEURONS = 200
     tau_V = 10
-    R = 1 # MOhm
+    R = 1  # MOhm
     EL = -70.0
     V_th = -40.0
-    dt = 0.1 # msec
-    t_stop = 50.0e3
-    tt = np.arange(0.0, t_stop, dt)
-    # p.dt = dt; p.tStop = t_stop; ????????
-    tw = 100.0
+    dt = 0.1  # msec
+    t_stop = 3.0e3  # 30.0e3
 
-    V = np.zeros((tt.shape[0], TRIAL_NUM)) # Membrane potential per neuron
+    RESULTS_DIR = "./results"
+    GRAPHS_DIR = "./graphs"
 
-    # Additive noise to individual neurons
-    ETA = np.zeros(V.shape)
-    for i in range(0, TRIAL_NUM):
-        ETA[:,i], _ = ouprocess_gaussian(5, dt, t_stop)
+    # Slow Signal: INPUT
+    start_time = time.time()
+    input_slow, _ = ouprocess_gaussian(50.0, dt, t_stop, 1)
+    i_inj = 16.0 + 6.0 * input_slow
+    print(time.time() - start_time)
 
-    # Slow Signal
-    input_slow, _ = ouprocess_gaussian(5, dt, t_stop)
-    i_inj = 16.0 + 6.0*input_slow
+    fcl = FullyConnectedLayer(NUM_NEURONS, device="cpu")
+    losses = fcl.train(i_inj=i_inj, exp_output=i_inj, dt=dt, t_stop=t_stop,
+                       num_iters=15)
 
-    F_binary = np.zeros((tt.shape[0], TRIAL_NUM))
-    avg_firing_rate = np.zeros(TRIAL_NUM)
-    a2 = 25.0 # pA; std of noise
-
-    for k in range(0, TRIAL_NUM):
-        I_total = i_inj + a2*ETA[:,k]
-        V[:,k] = lif_compute(I_total, R, tau_V, V_th, dt)
-        F_binary[:, k] = spike_binary(V[:, k])
-        avg_firing_rate[k] = np.sum(F_binary[:,k])/(t_stop/1e3)
-
+    # layer = Layer(NUM_NEURONS, device="cpu")
+    # layer.train(i_inj=i_inj, exp_output=i_inj, dt=dt, t_stop=t_stop)
+    #
+    # out, V, F_binary, F_synaptic = layer.output(i_inj, dt, t_stop)
+    # _, spike_out = layer.spike(out, dt, t_stop, int_noise_regen=True)
