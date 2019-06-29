@@ -3,13 +3,15 @@ import torch
 
 
 # VECTORIZE
-def lif_compute(I_total, R, tau_V, Th, dt, V_start=-70.0,
+def lif_compute(I_total, R, tau_V, Th, dt, V_start=None,
                 grad=False, device="cpu"):
     torch.autograd.set_grad_enabled(grad)
 
-    EL = V_start  # mV
+    EL = -70.0  # mV
     V_th = Th  # -50
-    V = torch.ones(I_total.shape[1], device=device)*V_start
+
+    v_start = V_start if V_start is not None else EL
+    V = torch.ones(I_total.shape[1], device=device)*v_start
 
     V_reset = -90.0
 

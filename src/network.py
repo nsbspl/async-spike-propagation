@@ -36,7 +36,8 @@ class Layer:
 
         self._ETA = None
 
-    def spike(self, i_inj, dt, t_stop, int_noise_regen=True, grad=False):
+    def spike(self, i_inj, dt, t_stop,
+              V_start=None, int_noise_regen=True, grad=False):
         torch.set_grad_enabled(grad)
 
         tt = np.arange(0.0, t_stop, dt)
@@ -56,7 +57,7 @@ class Layer:
         I_total = int_noise + i_inj
 
         V = lif_compute(I_total, self.R, self.tau_V, self.V_th, dt,
-                        grad=grad, device=self._device)
+                        V_start=V_start, grad=grad, device=self._device)
         F_binary = spike_binary(V, grad=grad, device=self._device)
 
         return V, F_binary
@@ -412,37 +413,44 @@ class FullyConnectedLayer(_FullyConnectedLayer):
         for t in range(num_iters): #500
             loop_start_time = time.time()
             curr_losses = []
+            print("ITER ", t, ":  ----------")
+
+            prev_V_layer1 = None
+            prev_V_layer2 = None
+
             for batch_start in range(0, train_t_steps+1, int(batch_t_steps)):
-                batch = i_inj[batch_start:batch_start+int(batch_t_steps/dt)]
+                batch = i_inj[int(batch_start/dt):
+                              batch_start+int(batch_t_steps/dt)]
                 batch_t_stop = min(batch_t_steps, train_t_steps-batch_start)
-                print("batch created...")
 
                 # Forward pass: compute predicted y by passing x to the model.
                 batch_tensor = torch.as_tensor(batch, device=self._device)
 
                 _, F_binary = self.spike(batch_tensor, dt, batch_t_stop,
+                                         V_start=prev_V_layer1,
                                          int_noise_regen=True, grad=True)
-                print("spiked...")
+
                 F_synaptic = self.synapse(F_binary, dt, batch_t_stop,
                                           grad=True)
-                print("synapise...")
+
                 t_steps = F_binary.shape[0]
                 out = self.synaptic_weight(F_synaptic, t_steps)
-                print("out...")
-                # out.requires_grad_(requires_grad=True)
 
-                _, spike_out = self.spike(out, dt, batch_t_stop, int_noise_regen=True, grad=True)
-                print("spike_out...")
+                _, spike_out = self.spike(out, dt, batch_t_stop,
+                                          V_start=prev_V_layer2,
+                                          int_noise_regen=True, grad=True)
+
+                prev_V_layer1 = F_binary[-1]
+                prev_V_layer2 = spike_out[-1]
 
                 in_fr = self.firing_rate(F_binary, dt, batch_t_stop, grad=True)
                 out_fr = self.firing_rate(spike_out, dt, batch_t_stop, grad=True)
-                # spike_out.requires_grad_(requires_grad=True)
-                print("inst firing rates...")
+
                 # Compute and print loss.
                 # loss = self.loss(torch.tensor(exp_output, dtype=torch.double, device=self._device),
                 #                  torch.mean(out, dim=1, keepdim=True))
                 loss = self.loss(in_fr, out_fr)
-                print("loss...")
+
                 # Before the backward pass, use the optimizer object to zero all of the
                 # gradients for the Tensors it will update (which are the learnable weights
                 # of the model)
@@ -450,18 +458,16 @@ class FullyConnectedLayer(_FullyConnectedLayer):
 
                 # Backward pass: compute gradient of the loss with respect to model parameters
                 loss.backward()
-                print("grad desc...")
 
                 # Calling the step function on an Optimizer makes an update to its parameters
                 optimizer.step()
 
                 curr_losses.append(loss.item())
 
-                print("batch: ", batch_start)
+                print("batch: ", batch_start, "loss: ", loss.item())
 
             avg_loss = np.mean(curr_losses)
             losses.append(avg_loss)
-
             print("ITER ", t, ":  ----------")
             print("Avg loss: ", avg_loss)
             print("Loop time: ", time.time()-loop_start_time)
