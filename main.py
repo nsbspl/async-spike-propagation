@@ -25,10 +25,12 @@ if __name__ == '__main__':
     i_inj = 16.0 + 6.0 * input_slow
     print(time.time() - start_time)
 
-    fcl = FullyConnectedLayer(NUM_NEURONS, device="cpu")
+    fcl = FullyConnectedLayer(NUM_NEURONS, device="gpu")
     losses = fcl.train(i_inj=i_inj, exp_output=i_inj, dt=dt, t_stop=t_stop,
                        num_iters=15)
 
+    fcl.save("./results", "fcl_neurons=200")
+    np.save(open("./results/losses.npy", 'wb'), losses)
     # layer = Layer(NUM_NEURONS, device="cpu")
     # layer.train(i_inj=i_inj, exp_output=i_inj, dt=dt, t_stop=t_stop)
     #
