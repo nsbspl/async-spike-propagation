@@ -1,12 +1,14 @@
 import json
-import numpy as np
+import math
 import os
-from scipy.signal import find_peaks
+from scipy import optimize
 
+import numpy as np
+import torch
 
-from src.lif import lif_compute, spike_binary, id_synaptic_waveform
+from src.lif import lif_compute, spike_binary, id_synaptic_waveform, \
+    gaussian_kernel
 from src.ou_process import ouprocess_gaussian
-from src.spike_sync import find_synced_spikes
 
 
 class Layer:
@@ -78,6 +80,40 @@ class Layer:
 
         return out, V, F_binary, F_synaptic
 
+    def firing_rate(self, F_binary, dt, t_stop, grad=False):
+        torch.set_grad_enabled(grad)
+
+        tt = np.arange(0.0, t_stop, dt)
+
+        gauss_kernel = gaussian_kernel(dt, 25.0)
+        gauss_kernel_len = gauss_kernel.shape[0]
+
+        # CONVOLUTION EXPLAINED
+        # kernel:
+        #     out_channels = NUM_NEURONS
+        #     in_channels / groups = 1
+        #     kernel_size = gauss_kernel_len
+        # input:
+        #     minibatch = 1
+        #     in_channels = NUM_NEURONS
+        #     input_size = len(tt)
+        # => groups = NUM_NEURONS (do SAME convolution SEPARATELY over each neuron spike train)
+
+        # inst_firing_rate = torch.zeros(F_binary.shape, device=self._device)
+        gauss_kernel_tensor = torch.as_tensor(gauss_kernel).repeat(
+            self.NUM_NEURONS, 1, 1)
+        pad = math.ceil(gauss_kernel_len / 2.0)
+
+        convolved_spikes = torch.nn.functional.conv1d(
+            torch.as_tensor(F_binary).t()[None, :, :],
+            gauss_kernel_tensor,
+            groups=self.NUM_NEURONS,
+            padding=pad)
+
+        inst_firing_rate = convolved_spikes[0, :, :tt.shape[0]].t()
+
+        return inst_firing_rate
+
     def train(self, i_inj, exp_output, dt, t_stop):
         _, _, _, F_synaptic = self.output(i_inj, dt, t_stop)
 
@@ -88,7 +124,10 @@ class Layer:
         X2 = -1.0*self.v_ave*np.ones((t_steps,ind_neur.shape[0])) + self.v_E
 
         A = np.multiply(Phi, X2)
-        self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
+        # self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
+        print(self.W.shape)
+        self.W, residuals = optimize.nnls(A, exp_output.flatten())
+        self.W = self.W[:, None]
         self.train_input = i_inj
         self.train_exp_output = exp_output
     

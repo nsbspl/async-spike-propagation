@@ -101,3 +101,10 @@ def id_synaptic_waveform(dt, t_end, tau_rise, tau_fall):
     factor = -np.exp(-tp/tau_rise) + np.exp(-tp/tau_fall)
     
     return 1.0/factor * (np.exp(-t/tau_fall) - np.exp(-t/tau_rise))
+
+def gaussian_kernel(dt, sig):
+    t = np.arange(-(sig*3.0), sig*3.0, dt) # 3 standard deviations on either side
+    gauss_kernel = 1.0/(sig*np.sqrt(2.0*np.pi))*np.exp(-1.0*np.power(t, 2.0)/(2.0*np.power(sig, 2.0)))
+    gauss_kernel /= np.linalg.norm(gauss_kernel, ord=1)*dt # Want area under curve to be 1
+
+    return gauss_kernel
