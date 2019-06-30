@@ -394,14 +394,12 @@ class FullyConnectedLayer(_FullyConnectedLayer):
             self.W, device=self._device
         ).requires_grad_(True)
 
-    def train(self, i_inj, exp_output, dt, t_stop, num_iters=15,
-              batch_t_steps=500.0):
+    def train(self, i_inj, exp_output, dt, t_stop, num_iters=15):
         torch.set_grad_enabled(True)
         losses = []
 
         self.train_input = i_inj
         self.train_exp_output = exp_output
-        train_t_steps = np.arange(0.0, t_stop, dt).shape[0]
 
         optimizer = torch.optim.Adam([self.W])
 
@@ -410,46 +408,29 @@ class FullyConnectedLayer(_FullyConnectedLayer):
         for t in range(num_iters): #500
             loop_start_time = time.time()
             curr_losses = []
-            for batch_start in range(0, train_t_steps+1, int(batch_t_steps)):
-                batch = i_inj[batch_start:batch_start+int(batch_t_steps*dt)]
-                batch_t_stop = min(batch_t_steps, train_t_steps-batch_start)
 
-                # Forward pass: compute predicted y by passing x to the model.
-                batch_tensor = torch.as_tensor(batch, device=self._device)
+            # Forward pass: compute predicted y by passing x to the model.
+            batch_tensor = torch.as_tensor(i_inj, device=self._device)
 
-                _, F_binary = self.spike(batch_tensor, dt, batch_t_stop,
-                                         int_noise_regen=True, grad=True)
-                F_synaptic = self.synapse(F_binary, dt, batch_t_stop,
-                                          grad=True)
+            out, _, _, _ = self.output(batch_tensor, dt, t_stop,
+                                       int_noise_regen=True, grad=True)
 
-                t_steps = F_binary.shape[0]
-                out = self.synaptic_weight(F_synaptic, t_steps)
+            # Compute and print loss.
+            loss = self.loss(torch.tensor(exp_output, dtype=torch.double, device=self._device),
+                             torch.mean(out, dim=1, keepdim=True))
 
-                # out.requires_grad_(requires_grad=True)
+            # Before the backward pass, use the optimizer object to zero all of the
+            # gradients for the Tensors it will update (which are the learnable weights
+            # of the model)
+            optimizer.zero_grad()
 
-                _, spike_out = self.spike(out, dt, batch_t_stop, int_noise_regen=True, grad=True)
+            # Backward pass: compute gradient of the loss with respect to model parameters
+            loss.backward()
 
-                in_fr = self.firing_rate(F_binary, dt, batch_t_stop, grad=True)
-                out_fr = self.firing_rate(spike_out, dt, batch_t_stop, grad=True)
-                # spike_out.requires_grad_(requires_grad=True)
+            # Calling the step function on an Optimizer makes an update to its parameters
+            optimizer.step()
 
-                # Compute and print loss.
-                # loss = self.loss(torch.tensor(exp_output, dtype=torch.double, device=self._device),
-                #                  torch.mean(out, dim=1, keepdim=True))
-                loss = self.loss(in_fr, out_fr)
-
-                # Before the backward pass, use the optimizer object to zero all of the
-                # gradients for the Tensors it will update (which are the learnable weights
-                # of the model)
-                optimizer.zero_grad()
-
-                # Backward pass: compute gradient of the loss with respect to model parameters
-                loss.backward()
-
-                # Calling the step function on an Optimizer makes an update to its parameters
-                optimizer.step()
-
-                curr_losses.append(loss.item())
+            curr_losses.append(loss.item())
 
             avg_loss = np.mean(curr_losses)
             losses.append(avg_loss)
