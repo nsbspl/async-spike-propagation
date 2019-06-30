@@ -118,7 +118,7 @@ class Layer:
         F_synaptic = self.synapse(F_binary, dt, t_stop, grad=grad)
 
         t_steps = F_binary.shape[0]
-        out = self.synaptic_weight(F_synaptic, t_steps)
+        out = self.synaptic_weight(F_synaptic, t_steps, grad=grad)
 
         return out, V, F_binary, F_synaptic
 
@@ -242,8 +242,10 @@ class Layer:
         with open(os.path.join(path, LAYER_ATTRS_JSON), 'w') as outfile:
             json.dump(self.as_dict(), outfile)
 
+        w_new = torch.ones(self.W.shape)
+        w_new = w_new.copy_(self.W)
         np.savez(open(os.path.join(path, LAYER_WEIGHTS_NPZ), 'wb'),
-            W=self.W.numpy(),
+            W=w_new.detach().numpy(),
             train_input=self.train_input,
             train_exp_output=self.train_exp_output)
 
@@ -393,6 +395,12 @@ class FullyConnectedLayer(_FullyConnectedLayer):
         self.W = torch.as_tensor(
             self.W, device=self._device
         ).requires_grad_(True)
+
+    @classmethod
+    def load(cls, path: str, layer_name: str, device="cpu") -> 'Layer':
+        fcl = super().load(path, layer_name, device)
+        fcl.W = fcl.W.double()
+        return fcl
 
     def train(self, i_inj, exp_output, dt, t_stop, num_iters=15):
         torch.set_grad_enabled(True)
