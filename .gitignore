@@ -1,6 +1,7 @@
 # ------------------------------PROJECT SPECIFIC-------------------------------
-# Results
+# Results, graphs
 results/
+graphs/
 
 # ----------------------------GENERIC PYTHON THINGS----------------------------
 # Byte-compiled / optimized / DLL files

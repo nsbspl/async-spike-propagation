@@ -124,10 +124,10 @@ class Layer:
         X2 = -1.0*self.v_ave*np.ones((t_steps,ind_neur.shape[0])) + self.v_E
 
         A = np.multiply(Phi, X2)
-        # self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
-        print(self.W.shape)
-        self.W, residuals = optimize.nnls(A, exp_output.flatten())
-        self.W = self.W[:, None]
+        self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
+        # print(self.W.shape)
+        # self.W, residuals = optimize.nnls(A, exp_output.flatten())
+        # self.W = self.W[:, None]
         self.train_input = i_inj
         self.train_exp_output = exp_output
     
@@ -223,12 +223,22 @@ class PropogationNetwork(Layer):
         F_binary = None
         F_synaptic = None
 
+        list_outs = []
+        list_V = []
+        list_F_binary = []
+        list_F_synaptic = []
+
         for layer_num in range(self.depth):
             out, V, F_binary, F_synaptic =\
                 super().output(out, dt, t_stop, int_noise_regen=True)
+            
+            list_outs.append([out])
+            list_V.append([V])
+            list_F_binary.append([F_binary])
+            list_F_synaptic.append([F_synaptic])
         
-        return out, V, F_binary, F_synaptic
-    
+        return list_outs, list_V, list_F_binary, list_F_synaptic
+
     def as_dict(self):
         props_dict = super().as_dict()
         props_dict['depth'] = self.depth

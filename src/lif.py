@@ -24,7 +24,7 @@ def lif_compute(I_total, R, tau_V, Th, dt):
         spike_reset_add = ((int(1.0/dt)+1)*np.greater_equal(V, V_th))
         spike_reset_count = np.add(spike_reset_count, spike_reset_add[:,None])
 
-        # No spike
+        # No spike # Refractory period should be 1ms +- 0.5
         subthresh = np.multiply(np.equal(spike_reset_count, 0.0),V[:,None])
         reset = np.multiply(np.greater(spike_reset_count, 0.0),V_reset)
         reset_or_subthres = reset + subthresh

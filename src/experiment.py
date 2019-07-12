@@ -41,6 +41,12 @@ class Experiment:
         self.spike_neurons.append([neurons])
         self.outputs[:, i] = out.flatten()
 
+    def add_trials(self, i, out, f_binary):
+        times, neurons = np.where(f_binary != 0)
+        self.spike_times.append([times])
+        self.spike_neurons.append([neurons])
+        self.outputs[:, i] = out.flatten()
+
     def run(self, status_freq=10):
         start_time = time.time()
         loop_time = start_time
@@ -120,6 +126,7 @@ class Experiment:
         experiment.outputs = outputs
         experiment.spike_times = spike_times
         experiment.spike_neurons = spike_neurons
+        experiment.annotations = annotations
 
         return experiment
 
@@ -171,16 +178,20 @@ class MultiVariableExperiment:
 
         self.annotations=annotations
 
-    def one_experiment(self, var_values: dict, inputs: np.ndarray, layer: Layer) -> Experiment:
-        var_values_uuid = uuid4()
+    def one_experiment(self, var_values: dict, inputs: np.ndarray, layer: Layer, path: str, experiment_name: str) -> Experiment:
+        var_values_uuid = str(uuid4())
 
         experiment = Experiment(inputs, layer, self.num_trials, self.dt, self.t_stop, annotations=var_values_uuid)
         experiment.run(status_freq=self.num_trials)
-        
+
         self.var_values_dict[var_values_uuid] = var_values
-        self.experiments[var_values_uuid] = experiment
+        self._save_one_experiment(path, experiment_name, experiment, var_values_uuid)
 
         return experiment
+
+    def add_one_experiment(self, var_values: dict, experiment: Experiment, var_values_uuid) -> Experiment:
+        self.var_values_dict[var_values_uuid] = var_values
+        self.experiments[var_values_uuid] = experiment
 
     def _as_dict(self):
         return {
@@ -191,44 +202,70 @@ class MultiVariableExperiment:
             'num_t': self.num_t
         }
 
+    def _save_one_experiment(self, path: str, experiment_name: str, experiment: Experiment, experiment_uuid):
+        folder_path = os.path.join(path, experiment_name)
+
+        self.save(path, experiment_name)
+
+        self._save_mve_descr_file(folder_path)
+
+        var_values = self.var_values_dict[experiment_uuid]
+        print(experiment_uuid)
+        print(var_values)
+        print(MultiVariableExperiment.var_values_to_str(experiment_uuid, var_values))
+        experiment.save(path=folder_path, experiment_name=MultiVariableExperiment.var_values_to_str(experiment_uuid, var_values))
+
     def save(self, path: str, experiment_name: str) -> Experiment:
         folder_path = os.path.join(path, experiment_name)
 
         if not os.path.exists(folder_path):
-            raise FileNotFoundError()
+            os.makedirs(folder_path)
 
-        for var_values_uuid, experiment in self.experiments.items():
-            var_values = self.var_values_dict[var_values_uuid]
-            experiment.save(path=folder_path, experiment_name=MultiVariableExperiment.var_values_to_str(var_values_uuid, var_values))
+        # for var_values_uuid, experiment in self.experiments.items():
+        #     var_values = self.var_values_dict[var_values_uuid]
+        #     experiment.save(path=folder_path, experiment_name=MultiVariableExperiment.var_values_to_str(var_values_uuid, var_values))
 
-        with open(os.path.join(folder_path, MultiVariableExperiment.__DESCR_FILE), 'w')\
-            as outfile:
-            json.dump(self._as_dict(), outfile)
+        self._save_mve_descr_file(folder_path)
+        self._save_var_values_uuid(folder_path)
+        self._save_mve_annotations(folder_path)
 
-        with open(os.path.join(folder_path, MultiVariableExperiment.__VAR_VALUES_UUID), 'w') as outfile:
-            json.dump(self.var_values_dict, outfile)
-
+    def _save_mve_annotations(self, folder_path):
         if self.annotations:
             with open(os.path.join(folder_path, MultiVariableExperiment.__ANNOTATIONS), 'w')\
                     as outfile:
                 json.dump(self.annotations, outfile)
 
+    def _save_mve_descr_file(self, folder_path):
+        with open(os.path.join(folder_path, MultiVariableExperiment.__DESCR_FILE), 'w')\
+            as outfile:
+            json.dump(self._as_dict(), outfile)
+
+    def _save_var_values_uuid(self, folder_path):
+        with open(os.path.join(folder_path, MultiVariableExperiment.__VAR_VALUES_UUID), 'w') as outfile:
+            json.dump(self.var_values_dict, outfile)
+
+    def load_one_experiment(self, path: str, experiment_name: str, var_values_uuid) -> Experiment:
+        folder_path = check_folder_path(path, experiment_name)
+        for exp_name in os.listdir(folder_path):
+            if os.path.isdir(os.path.join(folder_path, exp_name)):
+                experiment = Experiment.load(folder_path, exp_name)
+                if experiment.annotations == var_values_uuid:
+                    return experiment
+        return None
+
     @classmethod
     def load(cls, path: str, experiment_name: str) -> 'MultiVariableExperiment':
         experiments = {}
-        folder_path = os.path.join(path, experiment_name)
-
-        if not os.path.exists(folder_path):
-            raise FileNotFoundError()
+        folder_path = check_folder_path(path, experiment_name)
 
         var_values_dict = None
         with open(os.path.join(folder_path, MultiVariableExperiment.__VAR_VALUES_UUID), 'r') as infile:
             var_values_dict = json.load(infile)
 
-        for exp_name in os.listdir(folder_path):
-            if os.path.isdir(exp_name):
-                experiment = Experiment.load(folder_path, exp_name)
-                experiments[experiment.annotations] = experiment
+        # for exp_name in os.listdir(folder_path):
+        #     if os.path.isdir(exp_name):
+        #         experiment = Experiment.load(folder_path, exp_name) 
+        #         experiments[experiment.annotations] = experiment
 
         in_dict = {}
         infile = open(os.path.join(folder_path, MultiVariableExperiment.__DESCR_FILE), 'r')
@@ -236,7 +273,7 @@ class MultiVariableExperiment:
         num_trials = in_dict['num_trials']
         dt = in_dict['dt']
         t_stop = in_dict['t_stop']
-        variables = in_dict['variables']
+        variables = in_dict['vars']
         infile.close()
 
         annotations = None
@@ -259,7 +296,15 @@ class MultiVariableExperiment:
             ret_s += "="
             ret_s += str(val)
             ret_s += "__"
+        return ret_s
 
+def check_folder_path(path: str, experiment_name: str):
+    folder_path = os.path.join(path, experiment_name)
+
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError()
+    
+    return folder_path
 # int_noises = range(5, 50, 5)
 # network_sizes = range(10, 1110, 100)
 # variables = {
