@@ -99,7 +99,6 @@ class Layer:
         #     input_size = len(tt)
         # => groups = NUM_NEURONS (do SAME convolution SEPARATELY over each neuron spike train)
 
-        # inst_firing_rate = torch.zeros(F_binary.shape, device=self._device)
         gauss_kernel_tensor = torch.as_tensor(gauss_kernel).repeat(
             self.NUM_NEURONS, 1, 1)
         pad = math.ceil(gauss_kernel_len / 2.0)
@@ -112,7 +111,15 @@ class Layer:
 
         inst_firing_rate = convolved_spikes[0, :, :tt.shape[0]].t()
 
-        return inst_firing_rate
+        # RESCALE FIRING RATE TO MATCH UNITS
+        # mean firing rate should equal to mean of instantaneous firing rates
+        _, spike_trial = np.where(F_binary > 0)
+        mean_fr = spike_trial.shape[0] / self.NUM_NEURONS / (t_stop / 1.0e3)
+        inst_fr_mean = inst_firing_rate.mean(0).mean(0).numpy()
+
+        scaling_factor = mean_fr / inst_fr_mean
+
+        return inst_firing_rate * scaling_factor
 
     def train(self, i_inj, exp_output, dt, t_stop):
         _, _, _, F_synaptic = self.output(i_inj, dt, t_stop)
