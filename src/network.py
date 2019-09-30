@@ -13,7 +13,9 @@ from src.ou_process import ouprocess_gaussian
 
 class Layer:
     
-    def __init__(self, num_neurons, std_noise=25.0):
+    def __init__(self, num_neurons,
+                std_noise=25.0,
+                tau_fall=5.0):
         self.NUM_NEURONS = num_neurons
         self.tau_V = 10
         self.R = 1 # MOhm
@@ -29,7 +31,7 @@ class Layer:
         self.v_ave = -67.0
 
         self.tau_rise = 0.5
-        self.tau_fall = 5.0
+        self.tau_fall = tau_fall
         self.syn_kernel_len = 50.0
 
         self._ETA = None
@@ -217,7 +219,7 @@ class Layer:
 
         return layer
 
-class PropogationNetwork(Layer):
+class PropagationNetwork(Layer):
 
     def __init__(self, depth, num_neurons, std_noise=25.0):
         super().__init__(num_neurons, std_noise)
@@ -239,10 +241,16 @@ class PropogationNetwork(Layer):
             out, V, F_binary, F_synaptic =\
                 super().output(out, dt, t_stop, int_noise_regen=True)
             
-            list_outs.append([out])
-            list_V.append([V])
-            list_F_binary.append([F_binary])
-            list_F_synaptic.append([F_synaptic])
+            list_outs.append(out)
+            list_V.append(V)
+            list_F_binary.append(F_binary)
+            list_F_synaptic.append(F_synaptic)
+
+            self.W = np.random.normal(np.mean(self.W), np.std(self.W), self.W.shape)
+
+        # So that we have resulting firing rate of last layer's synaptic summation
+        _, spike_out, _ = super().spike(out, dt, t_stop, int_noise_regen=True)
+        list_F_binary.append(spike_out)
         
         return list_outs, list_V, list_F_binary, list_F_synaptic
 
@@ -253,8 +261,8 @@ class PropogationNetwork(Layer):
         return props_dict
 
     @classmethod
-    def from_layer(cls, layer: Layer, depth: int) -> 'PropogationNetwork':
-        prop_ntwrk = PropogationNetwork(depth, layer.NUM_NEURONS, layer.std_noise)
+    def from_layer(cls, layer: Layer, depth: int) -> 'PropagationNetwork':
+        prop_ntwrk = PropagationNetwork(depth, layer.NUM_NEURONS, layer.std_noise)
 
         prop_ntwrk.tau_V = layer.tau_V
         prop_ntwrk.R = layer.R
@@ -277,7 +285,7 @@ class PropogationNetwork(Layer):
         return prop_ntwrk
 
     @classmethod
-    def from_dict(cls, in_dict: dict) -> 'PropogationNetwork':
+    def from_dict(cls, in_dict: dict) -> 'PropagationNetwork':
         NUM_NEURONS = in_dict['NUM_NEURONS']
         depth = in_dict['depth']
         tau_V = in_dict['tau_V']
