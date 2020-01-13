@@ -150,7 +150,7 @@ class Layer:
         # self.W = self.W[:, None]
         self.train_input = i_inj
         self.train_exp_output = exp_output
-    
+
     def deepcopy() -> 'Layer':
         new_layer = Layer(self.num_neurons, self.std_noise, self.tau_fall)
         
@@ -545,15 +545,12 @@ class PropagationNetworkTorched(BasePropagationNetwork):
 
         return list_outs, list_V, list_F_binary, list_F_synaptic
 
-
-class _FullyConnectedLayer(Layer):
+    
+class FullyConnectedLayerApprox(Layer):
 
     def __init__(self, num_neurons, std_noise=25.0):
         super().__init__(num_neurons, std_noise=std_noise)
         self.W = np.zeros((self.NUM_NEURONS, self.NUM_NEURONS))
-
-
-class FullyConnectedLayerApprox(_FullyConnectedLayer):
 
     @classmethod
     def from_layer(cls, layer: Layer) -> 'FullyConnectedLayerApprox':
@@ -580,12 +577,12 @@ class FullyConnectedLayerApprox(_FullyConnectedLayer):
         return fcl
 
 
-class FullyConnectedLayerTorched(_FullyConnectedLayer):
+class FullyConnectedLayerTorched(LayerTorched):
 
     def __init__(self, num_neurons, std_noise=25.0, device="cpu"):
         super().__init__(num_neurons, std_noise=std_noise, device=device)
         self.W = torch.as_tensor(
-            self.W, device=self._device
+            np.zeros((self.NUM_NEURONS, self.NUM_NEURONS)), device=self._device
         ).requires_grad_(True)
 
     @classmethod
