@@ -5,6 +5,7 @@ from scipy import optimize
 
 import numpy as np
 import torch
+import time
 
 from src.lif import lif_compute, spike_binary, id_synaptic_waveform, \
     gaussian_kernel
@@ -280,7 +281,7 @@ class LayerTorched(Layer):
                                     device=self._device).requires_grad_(grad)
         # avg_firing_rate = np.zeros(self.NUM_NEURONS)
 
-        I_total = int_noise + i_inj
+        I_total = int_noise + torch.as_tensor(i_inj, device=self._device)
 
         V = lif_compute(I_total, self.R, self.tau_V, self.V_th, dt, torched=True,
                         grad=grad, device=self._device)
