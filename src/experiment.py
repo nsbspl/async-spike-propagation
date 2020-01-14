@@ -14,7 +14,7 @@ class Experiment:
     __NPZ = 'experiment_results.npz'
     __ANNOTATIONS = 'experment_annotations.json'
 
-    def __init__(self, inputs, layer, num_trials, dt, t_stop, annotations=None):
+    def __init__(self, inputs, layer, num_trials, dt, t_stop, num_neurons=None, annotations=None):
         self.layer = layer
 
         self.num_trials = num_trials
@@ -23,7 +23,8 @@ class Experiment:
         self.num_t = np.arange(0.0, t_stop, dt).shape[0]
 
         self.inputs = inputs
-        self.outputs = np.empty(inputs.shape)
+        self.num_neurons = num_neurons
+        self.outputs = np.empty(inputs.shape) if num_neurons is None else np.empty(inputs.shape + (num_neurons,))
         self.spike_times = []
         self.spike_neurons = []
 
@@ -39,13 +40,13 @@ class Experiment:
         times, neurons = np.where(f_binary != 0)
         self.spike_times.append([times])
         self.spike_neurons.append([neurons])
-        self.outputs[:, i] = out.flatten()
+        self.outputs[:, i] = out.flatten() if self.num_neurons is None else out
 
     def add_trials(self, i, out, f_binary):
         times, neurons = np.where(f_binary != 0)
         self.spike_times.append([times])
         self.spike_neurons.append([neurons])
-        self.outputs[:, i] = out.flatten()
+        self.outputs[:, i] = out.flatten() if self.num_neurons is None else out
 
     def run(self, status_freq=10):
         start_time = time.time()
