@@ -146,7 +146,8 @@ class Layer:
 
         A = np.multiply(Phi, X2)
         # self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
-        self.W, residuals = optimize.nnls(A, exp_output.flatten())
+        W, residuals = optimize.nnls(A, exp_output.flatten())
+        self.W = np.expand_dims(W, axis=1)
         # print(self.W.shape)
         # self.W, residuals = optimize.nnls(A, exp_output.flatten())
         # self.W = self.W[:, None]
