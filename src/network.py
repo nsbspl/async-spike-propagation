@@ -145,7 +145,8 @@ class Layer:
         X2 = -1.0*self.v_ave*np.ones((t_steps,ind_neur.shape[0])) + self.v_E
 
         A = np.multiply(Phi, X2)
-        self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
+        # self.W, residuals, rank, s = np.linalg.lstsq(A, exp_output)
+        self.W, residuals = optimize.nnls(A, exp_output.flatten())
         # print(self.W.shape)
         # self.W, residuals = optimize.nnls(A, exp_output.flatten())
         # self.W = self.W[:, None]
