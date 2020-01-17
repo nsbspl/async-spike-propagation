@@ -625,7 +625,7 @@ class FullyConnectedLayerTorched(LayerTorched):
             out, _, _, _ = self.output(batch_tensor, dt, t_stop,
                                        int_noise_regen=True, grad=True)
 
-            # Compute and print loss.
+            # Compute and print loss: average of output should equal expected output
             loss = self.loss(torch.tensor(exp_output, dtype=torch.double, device=self._device),
                              torch.mean(out, dim=1, keepdim=True))
 
