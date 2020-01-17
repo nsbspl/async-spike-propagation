@@ -383,6 +383,16 @@ class LayerTorched(Layer):
 
         inst_firing_rate = convolved_spikes[0, :, :tt.shape[0]].t()
 
+        # RESCALE FIRING RATE TO MATCH UNITS
+        # mean firing rate should equal to mean of instantaneous firing rates
+        _, spike_trial = np.where(F_binary > 0)
+        mean_fr = spike_trial.shape[0] / self.NUM_NEURONS / (t_stop / 1.0e3)
+        inst_fr_mean = inst_firing_rate.mean(0).mean(0).numpy()
+
+        scaling_factor = mean_fr / inst_fr_mean
+
+        return inst_firing_rate * scaling_factor
+
         return inst_firing_rate
 
     def train(self, i_inj, exp_output, dt, t_stop):
